@@ -21,7 +21,11 @@ const CLOUDFLARE_KEYS = [
   'WEATHER_LOCATION_NAME',
 ];
 
-const WRANGLER_VAR_KEYS = CLOUDFLARE_KEYS.filter((k) => !k.endsWith('_API_KEY'));
+const WRANGLER_VAR_KEYS = [
+  ...CLOUDFLARE_KEYS.filter((k) => !k.endsWith('_API_KEY')),
+  'TFL_CACHE_SECONDS',
+  'WEATHER_CACHE_SECONDS',
+];
 
 const ARDUINO_KEYS = ['WORKER_URL', 'WIFI_SSID', 'WIFI_PASS'];
 
@@ -71,10 +75,29 @@ function pick(env, keys) {
   return out;
 }
 
+function readExistingDevVars(path) {
+  if (!existsSync(path)) return {};
+  return parseEnv(readFileSync(path, 'utf8'));
+}
+
+function readWranglerVars(content) {
+  const match = content.match(/"vars"\s*:\s*(\{[\s\S]*?\r?\n  \})/);
+  if (!match) return {};
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return {};
+  }
+}
+
+function mergeEnvValues(existing, synced) {
+  return { ...existing, ...synced };
+}
+
 function writeDevVars(env) {
-  const values = pick(env, CLOUDFLARE_KEYS);
-  const lines = Object.entries(values).map(([k, v]) => `${k}=${v}`);
   const path = join(ROOT, 'cloudflare', '.dev.vars');
+  const values = mergeEnvValues(readExistingDevVars(path), pick(env, CLOUDFLARE_KEYS));
+  const lines = Object.entries(values).map(([k, v]) => `${k}=${v}`);
   writeFileSync(path, GENERATED_BANNER + lines.join('\n') + '\n');
   return path;
 }
@@ -82,10 +105,10 @@ function writeDevVars(env) {
 function writeWranglerVars(env) {
   const path = join(ROOT, 'cloudflare', 'wrangler.jsonc');
   const content = readFileSync(path, 'utf8');
-  const values = pick(env, WRANGLER_VAR_KEYS);
+  const values = mergeEnvValues(readWranglerVars(content), pick(env, WRANGLER_VAR_KEYS));
 
   const entries = Object.entries(values)
-    .map(([k, v]) => `    "${k}": ${JSON.stringify(v)}`)
+    .map(([k, v]) => `    "${k}": ${JSON.stringify(String(v))}`)
     .join(',\n');
 
   const varsBlock = `{\n${entries}\n  }`;
