@@ -49,12 +49,18 @@ const WEATHER_DESCRIPTIONS = {
 };
 
 const DEFAULT_TFL_CACHE_SECONDS = 5;
-const DEFAULT_WEATHER_CACHE_SECONDS = 900;
+const DEFAULT_WEATHER_CACHE_SECONDS = 3600;
 
 /** @type {{ tfl: { value: object | null, fetchedAt: number }, weather: { value: object | null, fetchedAt: number } }} */
 const memoryCache = {
   tfl: { value: null, fetchedAt: 0 },
   weather: { value: null, fetchedAt: 0 },
+};
+
+/** @type {{ tfl: Promise<object> | null, weather: Promise<object> | null }} */
+const inFlight = {
+  tfl: null,
+  weather: null,
 };
 
 function config(env) {
@@ -328,71 +334,128 @@ async function getCachedTfl(cfg) {
   const slot = memoryCache.tfl;
 
   if (cacheFresh(slot.fetchedAt, cfg.tflCacheSeconds)) {
-    return { value: slot.value, cacheStatus: 'HIT-TFL', lastFetchedAt: slot.fetchedAt };
+    return { value: slot.value, cacheStatus: 'HIT-TFL', fetchedAt: slot.fetchedAt };
   }
 
-  try {
-    const value = await fetchTflBundle(cfg);
-    slot.value = value;
-    slot.fetchedAt = Date.now();
-    return { value, cacheStatus: 'MISS-TFL', lastFetchedAt: slot.fetchedAt };
-  } catch (error) {
-    console.warn('TfL fetch failed:', error);
-    if (slot.value) {
-      return { value: slot.value, cacheStatus: 'STALE-TFL', lastFetchedAt: slot.fetchedAt };
-    }
-    return {
-      value: {
-        line: cfg.tflLineName,
-        stop: cfg.tflStopName,
-        direction: cfg.tflDirectionLabel,
-        status: 'N/A',
-        disruption: false,
-        etas: [],
-      },
-      cacheStatus: 'MISS-TFL-ERROR',
-      lastFetchedAt: 0,
-    };
+  if (!inFlight.tfl) {
+    inFlight.tfl = (async () => {
+      try {
+        const value = await fetchTflBundle(cfg);
+        slot.value = value;
+        slot.fetchedAt = Date.now();
+        return { value, cacheStatus: 'MISS-TFL', fetchedAt: slot.fetchedAt };
+      } catch (error) {
+        console.warn('TfL fetch failed:', error);
+        if (slot.value) {
+          return { value: slot.value, cacheStatus: 'STALE-TFL', fetchedAt: slot.fetchedAt };
+        }
+        return {
+          value: {
+            line: cfg.tflLineName,
+            stop: cfg.tflStopName,
+            direction: cfg.tflDirectionLabel,
+            status: 'N/A',
+            disruption: false,
+            etas: [],
+          },
+          cacheStatus: 'MISS-TFL-ERROR',
+          fetchedAt: 0,
+        };
+      } finally {
+        inFlight.tfl = null;
+      }
+    })();
   }
+
+  return inFlight.tfl;
 }
 
 async function getCachedWeather(cfg) {
   const slot = memoryCache.weather;
 
   if (cacheFresh(slot.fetchedAt, cfg.weatherCacheSeconds)) {
-    return { value: slot.value, cacheStatus: 'HIT-WEATHER', lastFetchedAt: slot.fetchedAt };
+    return { value: slot.value, cacheStatus: 'HIT-WEATHER', fetchedAt: slot.fetchedAt };
   }
 
-  try {
-    const value = await getWeather(cfg);
-    slot.value = value;
-    slot.fetchedAt = Date.now();
-    return { value, cacheStatus: 'MISS-WEATHER', lastFetchedAt: slot.fetchedAt };
-  } catch (error) {
-    console.warn('Weather fetch failed:', error);
-    if (slot.value) {
-      return { value: slot.value, cacheStatus: 'STALE-WEATHER', lastFetchedAt: slot.fetchedAt };
-    }
-    return {
-      value: {
-        location: cfg.weatherLocationName,
-        description: 'N/A',
-        icon: 'wi-na',
-        tempC: null,
-        feelsLikeC: null,
-        minC: null,
-        maxC: null,
-        precipMm: null,
-      },
-      cacheStatus: 'MISS-WEATHER-ERROR',
-      lastFetchedAt: 0,
-    };
+  if (!inFlight.weather) {
+    inFlight.weather = (async () => {
+      try {
+        const value = await getWeather(cfg);
+        slot.value = value;
+        slot.fetchedAt = Date.now();
+        return { value, cacheStatus: 'MISS-WEATHER', fetchedAt: slot.fetchedAt };
+      } catch (error) {
+        console.warn('Weather fetch failed:', error);
+        if (slot.value) {
+          return { value: slot.value, cacheStatus: 'STALE-WEATHER', fetchedAt: slot.fetchedAt };
+        }
+        return {
+          value: {
+            location: cfg.weatherLocationName,
+            description: 'N/A',
+            icon: 'wi-na',
+            tempC: null,
+            feelsLikeC: null,
+            minC: null,
+            maxC: null,
+            precipMm: null,
+          },
+          cacheStatus: 'MISS-WEATHER-ERROR',
+          fetchedAt: 0,
+        };
+      } finally {
+        inFlight.weather = null;
+      }
+    })();
   }
+
+  return inFlight.weather;
 }
 
 export default {
   async fetch(request, env) {
     const cfg = config(env);
+    const { pathname } = new URL(request.url);
+
+    if (pathname === '/weather') {
+      const weatherResult = await getCachedWeather(cfg);
+
+      return jsonResponse(
+        {
+          weather: weatherResult.value,
+          meta: {
+            cache: weatherResult.cacheStatus,
+            fetchedAt: isoOrNull(weatherResult.fetchedAt),
+          },
+        },
+        {
+          cacheStatus: weatherResult.cacheStatus,
+          maxAgeSeconds: cfg.weatherCacheSeconds,
+        },
+      );
+    }
+
+    if (pathname === '/tfl') {
+      const tflResult = await getCachedTfl(cfg);
+
+      return jsonResponse(
+        {
+          tfl: tflResult.value,
+          meta: {
+            cache: tflResult.cacheStatus,
+            fetchedAt: isoOrNull(tflResult.fetchedAt),
+          },
+        },
+        {
+          cacheStatus: tflResult.cacheStatus,
+          maxAgeSeconds: cfg.tflCacheSeconds,
+        },
+      );
+    }
+
+    if (pathname !== '/') {
+      return new Response('Not Found', { status: 404 });
+    }
 
     const [tflResult, weatherResult] = await Promise.all([
       getCachedTfl(cfg),
@@ -408,8 +471,8 @@ export default {
         weather: weatherResult.value,
         meta: {
           lastFetched: {
-            tfl: isoOrNull(tflResult.lastFetchedAt),
-            metOffice: isoOrNull(weatherResult.lastFetchedAt),
+            tfl: isoOrNull(tflResult.fetchedAt),
+            metOffice: isoOrNull(weatherResult.fetchedAt),
           },
         },
       },

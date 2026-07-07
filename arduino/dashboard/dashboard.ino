@@ -86,7 +86,7 @@ void loop() {
   }
 
   if (scheduler.tasks[4].due(now)) {
-    network::fetchDashboard(dashboard);
+    network::fetchTfl(dashboard);
     scheduler.markRan(RefreshRegion::Tfl, now);
     needsFullRefresh = true;
   }
@@ -99,7 +99,7 @@ void loop() {
   }
 
   if (scheduler.tasks[5].due(now)) {
-    network::fetchDashboard(dashboard);
+    network::fetchWeather(dashboard);
     scheduler.markRan(RefreshRegion::Weather, now);
     needsFullRefresh = true;
   }

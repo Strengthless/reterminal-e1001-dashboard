@@ -66,44 +66,57 @@ static void parseWeather(JsonObject weather, DashboardData& data) {
   data.weatherPrecipMm = weather["precipMm"].isNull() ? NAN : weather["precipMm"].as<float>();
 }
 
-bool fetchDashboard(DashboardData& data) {
-  auto markStaleIfCached = [&]() {
-    if (data.apiOk) data.apiStale = true;
-  };
-
-  if (!ensureConnected()) {
-    markStaleIfCached();
-    return false;
-  }
+static bool fetchJsonPath(const char* path, JsonDocument& doc) {
+  if (!ensureConnected()) return false;
 
   HTTPClient http;
   http.setTimeout(10000);
-  if (!http.begin(WORKER_URL)) {
-    markStaleIfCached();
-    return false;
-  }
+
+  String url = String(WORKER_URL) + path;
+  if (!http.begin(url)) return false;
 
   const int code = http.GET();
   if (code != HTTP_CODE_OK) {
     http.end();
-    markStaleIfCached();
     return false;
   }
 
-  JsonDocument doc;
   const String payload = http.getString();
   http.end();
 
-  if (deserializeJson(doc, payload)) {
-    markStaleIfCached();
+  return !deserializeJson(doc, payload);
+}
+
+bool fetchTfl(DashboardData& data) {
+  JsonDocument doc;
+  if (!fetchJsonPath("tfl", doc)) {
+    if (data.apiOk) data.apiStale = true;
     return false;
   }
 
   parseTfl(doc["tfl"].as<JsonObject>(), data);
+  data.apiOk = true;
+  data.apiStale = false;
+  return true;
+}
+
+bool fetchWeather(DashboardData& data) {
+  JsonDocument doc;
+  if (!fetchJsonPath("weather", doc)) {
+    if (data.apiOk) data.apiStale = true;
+    return false;
+  }
+
   parseWeather(doc["weather"].as<JsonObject>(), data);
   data.apiOk = true;
   data.apiStale = false;
   return true;
+}
+
+bool fetchDashboard(DashboardData& data) {
+  const bool tflOk = fetchTfl(data);
+  const bool weatherOk = fetchWeather(data);
+  return tflOk || weatherOk;
 }
 
 }  // namespace network
