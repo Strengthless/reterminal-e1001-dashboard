@@ -8,7 +8,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { PNG } from 'pngjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT_DIR = join(ROOT, 'arduino', 'assets');
+const OUT_DIR = join(ROOT, 'arduino', 'dashboard', 'assets');
 const ROUNDEL = 'elizabeth_line_roundel.svg';
 const ROUNDEL_HEIGHT = 64;
 const UI_ICON_SIZE = 36;
@@ -142,7 +142,7 @@ function main() {
   }
 
   writeFileSync(join(OUT_DIR, 'manifest.txt'), manifest.sort().join('\n') + '\n');
-  console.log(`\nGenerated ${manifest.length} headers in arduino/assets/`);
+  console.log(`\nGenerated ${manifest.length} headers in arduino/dashboard/assets/`);
 
   const lookup = spawnSync(process.execPath, [join(ROOT, 'scripts', 'generate-weather-icon-lookup.mjs')], {
     cwd: ROOT,

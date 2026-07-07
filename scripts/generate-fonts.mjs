@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TTF_DIR = join(ROOT, 'assets', 'fonts');
-const OUT_DIR = join(ROOT, 'arduino', 'fonts');
+const OUT_DIR = join(ROOT, 'arduino', 'dashboard', 'fonts');
 
 const CHARSET = '0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailablestale—';
 
@@ -79,8 +79,8 @@ Processing settings per job:
 
   writeFileSync(join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 
-  console.log('Font generation manifest written to arduino/fonts/');
-  console.log('Follow arduino/fonts/README.md using TFT_eSPI Create_font.pde');
+  console.log('Font generation manifest written to arduino/dashboard/fonts/');
+  console.log('Follow arduino/dashboard/fonts/README.md using TFT_eSPI Create_font.pde');
   for (const job of JOBS) {
     console.log(`  - ${job.header}.h  (${job.ttf} @ ${job.size}pt)`);
   }

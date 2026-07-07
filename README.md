@@ -80,7 +80,7 @@ If you add or edit an SVG:
 npm run convert-assets
 ```
 
-Then copy any new/changed `.h` files from `arduino/assets/` into `arduino/dashboard/assets/` (or adjust the script output path). Re-flash the firmware.
+Re-flash the firmware after regenerating headers.
 
 ### Montserrat fonts
 

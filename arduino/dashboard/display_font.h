@@ -10,7 +10,7 @@
 #  endif
 #endif
 
-// Or uncomment manually after generating VLW headers — see arduino/fonts/README.md
+// Or uncomment manually after generating VLW headers — see arduino/dashboard/fonts/README.md
 // #define USE_MONTSERRAT
 
 namespace display {
