@@ -12,8 +12,9 @@ void dashboardDataInit(DashboardData& data) {
 void applyLayoutPreviewMock(DashboardData& data) {
   std::strncpy(data.tflStatus, "Good Service", sizeof(data.tflStatus));
   data.tflDisruption = false;
-  data.apiOk = true;
-  data.apiStale = true;
+  data.tflOk = true;
+  data.tflStale = true;
+  data.weatherOk = true;
 
   std::strncpy(data.weatherLocation, "Ealing, London", sizeof(data.weatherLocation));
   std::strncpy(data.weatherDescription, "Overcast", sizeof(data.weatherDescription));

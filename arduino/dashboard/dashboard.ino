@@ -6,6 +6,7 @@
 #include "dashboard_network.h"
 #include "refresh_scheduler.h"
 #include "sensors.h"
+#include "dashboard_diag.h"
 
 #ifdef EPAPER_ENABLE
 EPaper1Bit epaper;
@@ -17,8 +18,11 @@ EPaper1Bit epaper;
 DashboardData dashboard;
 RefreshScheduler scheduler;
 
+// Light sleep drops the TCP stack while WiFi.status() stays CONNECTED.
+// Keep WiFi alive for short intervals so /tfl fetches stay fast.
+constexpr uint32_t kLightSleepThresholdMs = 60 * 1000;
+
 static void syncTimeFromNtp() {
-  // configTime() would overwrite TZ — use configTzTime for UK GMT/BST (Europe/London).
   configTzTime("GMT0BST,M3.5.0/1,M10.5.0", "pool.ntp.org", "time.nist.gov");
 }
 
@@ -33,8 +37,7 @@ static bool waitForTimeSync(uint32_t timeoutMs = 10000) {
 }
 
 static bool readTime(tm& timeinfo) {
-  if (!getLocalTime(&timeinfo)) return false;
-  return true;
+  return getLocalTime(&timeinfo);
 }
 
 static void updateSensors() {
@@ -42,91 +45,144 @@ static void updateSensors() {
   dashboard.batteryPct = sensors::readBatteryPercent();
 }
 
+static bool hasApiData() {
+  return dashboard.tflOk || dashboard.weatherOk;
+}
+
+static void refreshDisplay(const tm& timeinfo) {
+#ifdef EPAPER_ENABLE
+  display::fullScreenRefresh(dashboard, timeinfo);
+#endif
+}
+
+static void maybeRetryTimeSync(uint32_t now) {
+  static uint32_t lastRetryMs = 0;
+  if (now - lastRetryMs < 60000) return;
+  lastRetryMs = now;
+
+  tm probe {};
+  if (readTime(probe)) return;
+  if (!network::ensureConnected()) return;
+
+  diag::println("[time] retry NTP sync");
+  syncTimeFromNtp();
+  waitForTimeSync(5000);
+}
+
 void setup() {
-  Serial.begin(115200);
+  diag::begin();
 
   dashboardDataInit(dashboard);
 
   sensors::begin();
   network::begin();
   scheduler.begin();
-  syncTimeFromNtp();
 
   updateSensors();
+
+  const bool wifiUp = network::ensureConnected();
+  if (wifiUp) {
+    syncTimeFromNtp();
+  } else {
+    diag::println("[setup] wifi unavailable — skipping NTP");
+  }
+
   network::fetchDashboard(dashboard);
-  waitForTimeSync();
+
+  if (wifiUp) {
+    waitForTimeSync();
+  }
+
 #if LAYOUT_PREVIEW
   applyLayoutPreviewMock(dashboard);
 #endif
 
 #ifdef EPAPER_ENABLE
   display::begin();
-  tm timeinfo {};
-  if (readTime(timeinfo)) {
-    display::fullScreenRefresh(dashboard, timeinfo);
+
+  if (hasApiData()) {
+    tm timeinfo {};
+    readTime(timeinfo);
+    refreshDisplay(timeinfo);
   }
 #endif
 
-  scheduler.markRan(RefreshRegion::Clock, millis());
-  scheduler.markRan(RefreshRegion::Date, millis());
-  scheduler.markRan(RefreshRegion::Battery, millis());
-  scheduler.markRan(RefreshRegion::Sensors, millis());
-  scheduler.markRan(RefreshRegion::Tfl, millis());
-  scheduler.markRan(RefreshRegion::Weather, millis());
+  const uint32_t done = millis();
+  scheduler.markRan(RefreshRegion::Clock, done);
+  scheduler.markRan(RefreshRegion::Date, done);
+  scheduler.markRan(RefreshRegion::Battery, done);
+  scheduler.markRan(RefreshRegion::Sensors, done);
+  scheduler.markRan(RefreshRegion::Tfl, done);
+  scheduler.markRan(RefreshRegion::Weather, done);
 }
 
 void loop() {
-  const uint32_t now = millis();
-  tm timeinfo {};
+  const uint32_t loopStart = millis();
   bool needsFullRefresh = false;
+  bool ranTfl = false;
+  bool ranClock = false;
+  bool ranDate = false;
+  bool ranBattery = false;
+  bool ranSensors = false;
+  bool ranWeather = false;
 
-  if (!readTime(timeinfo)) {
-    delay(200);
-    return;
+  tm timeinfo {};
+  const bool hasTime = readTime(timeinfo);
+  if (!hasTime) {
+    maybeRetryTimeSync(loopStart);
   }
 
-  if (scheduler.tasks[4].due(now)) {
+  if (scheduler.periodicDue(loopStart)) {
     network::fetchTfl(dashboard);
-    scheduler.markRan(RefreshRegion::Tfl, now);
+    ranTfl = true;
+    ranClock = true;
     needsFullRefresh = true;
   }
 
-  if (scheduler.tasks[2].due(now)) {
+  if (scheduler.sensorsDue(loopStart)) {
     updateSensors();
-    scheduler.markRan(RefreshRegion::Battery, now);
-    scheduler.markRan(RefreshRegion::Sensors, now);
+    ranBattery = true;
+    ranSensors = true;
     needsFullRefresh = true;
   }
 
-  if (scheduler.tasks[5].due(now)) {
+  if (scheduler.weatherDue(loopStart)) {
     network::fetchWeather(dashboard);
-    scheduler.markRan(RefreshRegion::Weather, now);
+    ranWeather = true;
     needsFullRefresh = true;
   }
 
-  if (scheduler.dateDue(now, timeinfo.tm_yday)) {
-    scheduler.markRan(RefreshRegion::Date, now);
+  if (hasTime && scheduler.dateDue(loopStart, timeinfo.tm_yday)) {
+    ranDate = true;
     needsFullRefresh = true;
   }
 
-  if (scheduler.clockDue(now)) {
-    scheduler.markRan(RefreshRegion::Clock, now);
-    needsFullRefresh = true;
-  }
-
-#ifdef EPAPER_ENABLE
-  if (needsFullRefresh) {
+  uint32_t markMs = millis();
+  if (needsFullRefresh && hasApiData()) {
 #if LAYOUT_PREVIEW
     applyLayoutPreviewMock(dashboard);
 #endif
-    display::fullScreenRefresh(dashboard, timeinfo);
+    readTime(timeinfo);
+    refreshDisplay(timeinfo);
+    markMs = millis();
   }
-#endif
+
+  if (ranTfl) scheduler.markRan(RefreshRegion::Tfl, markMs);
+  if (ranBattery) scheduler.markRan(RefreshRegion::Battery, markMs);
+  if (ranSensors) scheduler.markRan(RefreshRegion::Sensors, markMs);
+  if (ranWeather) scheduler.markRan(RefreshRegion::Weather, markMs);
+  if (ranDate) scheduler.markRan(RefreshRegion::Date, markMs);
+  if (ranClock) scheduler.markRan(RefreshRegion::Clock, markMs);
 
   const uint32_t sleepMs = scheduler.msUntilNext(millis());
   if (sleepMs > 100) {
-    esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(sleepMs) * 1000ULL);
-    esp_light_sleep_start();
+    if (sleepMs <= kLightSleepThresholdMs) {
+      delay(sleepMs);
+    } else {
+      esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(sleepMs) * 1000ULL);
+      esp_light_sleep_start();
+      network::afterWake();
+    }
   } else {
     delay(50);
   }

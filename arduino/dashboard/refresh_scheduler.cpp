@@ -23,6 +23,22 @@ bool RefreshScheduler::clockDue(uint32_t now) const {
   return tasks[0].due(now);
 }
 
+bool RefreshScheduler::tflDue(uint32_t now) const {
+  return tasks[4].due(now);
+}
+
+bool RefreshScheduler::periodicDue(uint32_t now) const {
+  return clockDue(now) || tflDue(now);
+}
+
+bool RefreshScheduler::sensorsDue(uint32_t now) const {
+  return tasks[2].due(now);
+}
+
+bool RefreshScheduler::weatherDue(uint32_t now) const {
+  return tasks[5].due(now);
+}
+
 bool RefreshScheduler::dateDue(uint32_t now, int dayOfYear) {
   (void)now;
   if (lastDay < 0) {
@@ -59,10 +75,17 @@ RefreshRegion RefreshScheduler::nextDueRegion(uint32_t now, int dayOfYear) {
 
 void RefreshScheduler::markRan(RefreshRegion region, uint32_t now) {
   for (RefreshTask& task : tasks) {
-    if (task.region == region) {
+    if (task.region != region) continue;
+
+    if (task.intervalMs == 0 || task.lastRunMs == 0) {
       task.lastRunMs = now;
-      return;
+    } else {
+      task.lastRunMs += task.intervalMs;
+      if (now > task.lastRunMs) {
+        task.lastRunMs = now;
+      }
     }
+    return;
   }
 }
 

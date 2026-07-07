@@ -37,8 +37,9 @@ struct DashboardData {
   float sensorHumidityPct;
   uint8_t batteryPct;
 
-  bool apiOk;
-  bool apiStale;
+  bool tflOk;
+  bool tflStale;
+  bool weatherOk;
 };
 
 void dashboardDataInit(DashboardData& data);

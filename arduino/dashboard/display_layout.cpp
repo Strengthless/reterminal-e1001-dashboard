@@ -412,8 +412,8 @@ void drawTflRegion(const DashboardData& data) {
   drawTextInRect({tx, titleY, 300, titleH}, data.tflLine, FontRole::Title, 18);
   tx += textWidthFor(FontRole::Title, data.tflLine);
 
-  bool drawStaleIcon = data.apiOk && data.apiStale;
-  const bool drawWarnIcon = data.apiOk && !drawStaleIcon &&
+  bool drawStaleIcon = data.tflOk && data.tflStale;
+  const bool drawWarnIcon = data.tflOk && !drawStaleIcon &&
                             (data.tflDisruption || strcmp(data.tflStatus, "Good Service") != 0);
 
   if (drawStaleIcon || drawWarnIcon) {
@@ -432,7 +432,7 @@ void drawTflRegion(const DashboardData& data) {
     const int rowY = etaRowTextY(i);
     const Rect minsR = {ETA_MINS_X, rowY, ETA_MINS_W, ETA_LINE_H};
 
-    if (data.apiOk && i < data.tflEtaCount) {
+    if (data.tflOk && i < data.tflEtaCount) {
       snprintf(line, sizeof(line), "%u - %-16s", i + 1, data.tflEtas[i].destination);
       drawTextInRect({CONTENT_X, rowY, ETA_DEST_SLOT_W, ETA_LINE_H}, line, FontRole::Title, 18);
       formatEtaMins(line, sizeof(line), data.tflEtas[i].minutes);
@@ -469,7 +469,7 @@ void drawWeatherRegion(const DashboardData& data) {
   drawTextInRect({iconX, yLabel, contentW, WEATHER_LABEL_H},
                  data.weatherLocation, FontRole::Title, 18);
 
-  if (!data.apiOk) {
+  if (!data.weatherOk) {
     const int singleLineY = yMain + (WEATHER_MAIN_H - WEATHER_HOURLY_LINE_H) / 2;
     drawTextBoldInRect({mainTextX, singleLineY, r.x + PANEL_PAD_LEFT + contentW - mainTextX, WEATHER_HOURLY_LINE_H},
                        "Unavailable", FontRole::WeatherHourlyBold, 13);

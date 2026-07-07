@@ -28,6 +28,10 @@ struct RefreshScheduler {
 
   void begin();
   bool clockDue(uint32_t now) const;
+  bool tflDue(uint32_t now) const;
+  bool periodicDue(uint32_t now) const;
+  bool sensorsDue(uint32_t now) const;
+  bool weatherDue(uint32_t now) const;
   bool dateDue(uint32_t now, int dayOfYear);
   bool staticRefreshDue(uint32_t now) const;
   bool fullRefreshDue(uint32_t now) const;
