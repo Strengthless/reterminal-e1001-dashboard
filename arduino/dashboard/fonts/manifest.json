@@ -1,0 +1,38 @@
+[
+  {
+    "header": "Montserrat_30",
+    "ttf": "d:\\Repositories\\reterminal-e1001-dashboard\\assets\\fonts\\Montserrat-Medium.ttf",
+    "size": 30,
+    "charset": "0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailable—"
+  },
+  {
+    "header": "Montserrat_26",
+    "ttf": "d:\\Repositories\\reterminal-e1001-dashboard\\assets\\fonts\\Montserrat-Medium.ttf",
+    "size": 26,
+    "charset": "0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailable—"
+  },
+  {
+    "header": "Montserrat_24",
+    "ttf": "d:\\Repositories\\reterminal-e1001-dashboard\\assets\\fonts\\Montserrat-Medium.ttf",
+    "size": 24,
+    "charset": "0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailable—"
+  },
+  {
+    "header": "Montserrat_17",
+    "ttf": "d:\\Repositories\\reterminal-e1001-dashboard\\assets\\fonts\\Montserrat-Medium.ttf",
+    "size": 17,
+    "charset": "0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailable—"
+  },
+  {
+    "header": "Montserrat_17_Bold",
+    "ttf": "d:\\Repositories\\reterminal-e1001-dashboard\\assets\\fonts\\Montserrat-Bold.ttf",
+    "size": 17,
+    "charset": "0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailable—"
+  },
+  {
+    "header": "Montserrat_16",
+    "ttf": "d:\\Repositories\\reterminal-e1001-dashboard\\assets\\fonts\\Montserrat-Medium.ttf",
+    "size": 16,
+    "charset": "0123456789.:|%°ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz /·-min feels likeOvercastSunnyStatusGood ServiceUnavailable—"
+  }
+]

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard layout preview</title>
+  <link rel="stylesheet" href="fonts/montserrat.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <aside class="controls">
+    <h1>Layout preview</h1>
+    <p>800×480 smoke test — aligned to <code>assets/readme/design.png</code>.</p>
+
+    <label>
+      Data source
+      <select id="data-source">
+        <option value="mock">Mock data</option>
+        <option value="worker">Live worker</option>
+        <option value="json">Pasted JSON</option>
+      </select>
+    </label>
+
+    <label id="worker-url-wrap">
+      Worker URL
+      <input id="worker-url" type="url" placeholder="https://reterminal….workers.dev/" />
+    </label>
+
+    <label id="json-wrap" hidden>
+      JSON payload
+      <textarea id="json-input" rows="8" spellcheck="false"></textarea>
+    </label>
+
+    <div class="row">
+      <button id="refresh-btn" type="button">Refresh</button>
+      <label class="checkbox">
+        <input id="show-regions" type="checkbox" />
+        Show regions
+      </label>
+    </div>
+
+    <p id="status" class="status"></p>
+  </aside>
+
+  <main>
+    <div id="screen" class="screen" aria-label="Dashboard preview">
+      <div id="content" class="content"></div>
+      <div id="regions" class="regions" hidden></div>
+    </div>
+  </main>
+
+  <script src="layout.js" type="module"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

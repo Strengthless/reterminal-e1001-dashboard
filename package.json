@@ -1,0 +1,12 @@
+{
+  "name": "reterminal-e1001-dashboard",
+  "private": true,
+  "scripts": {
+    "sync-env": "node scripts/sync-env.mjs",
+    "convert-assets": "node scripts/convert-assets.mjs",
+    "setup-fonts": "node scripts/setup-fonts.mjs",
+    "generate-fonts": "node scripts/generate-fonts.mjs",
+    "preview:config": "node scripts/preview-config.mjs",
+    "preview": "node scripts/setup-fonts.mjs && node scripts/preview-config.mjs && npx --yes serve . -l 5173"
+  }
+}

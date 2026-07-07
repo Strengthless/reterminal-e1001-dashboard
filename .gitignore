@@ -1,0 +1,4 @@
+.env
+arduino/config.h
+cloudflare/.dev.vars
+node_modules/

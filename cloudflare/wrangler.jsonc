@@ -1,0 +1,35 @@
+{
+  "name": "reterminal",
+  "main": "src/worker.js",
+  "workers_dev": true,
+  "preview_urls": false,
+  "compatibility_date": "2026-07-04",
+  "vars": {
+    "TFL_LINE": "elizabeth",
+    "TFL_LINE_NAME": "Elizabeth line",
+    "TFL_STOP": "910GEALINGB",
+    "TFL_STOP_NAME": "Ealing Broadway",
+    "TFL_DIRECTION": "inbound",
+    "TFL_DIRECTION_LABEL": "Eastbound",
+    "WEATHER_LAT": "51.5130",
+    "WEATHER_LON": "-0.3089",
+    "WEATHER_LOCATION_NAME": "Ealing, London",
+    "TFL_CACHE_SECONDS": "5",
+    "WEATHER_CACHE_SECONDS": "900"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  }
+}

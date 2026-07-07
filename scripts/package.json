@@ -1,0 +1,15 @@
+{
+  "name": "reterminal-asset-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "convert-assets": "node convert-assets.mjs",
+    "sync-env": "node sync-env.mjs"
+  },
+  "dependencies": {
+    "@fontsource/montserrat": "^5.2.8",
+    "@resvg/resvg-js": "^2.6.2",
+    "pngjs": "^7.0.0",
+    "reterminal": "file:../cloudflare"
+  }
+}

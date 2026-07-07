@@ -1,0 +1,14 @@
+#pragma once
+
+// Template — run `npm run sync-env` from repo root to generate config.h from .env.
+
+static const char* WORKER_URL = "https://reterminal.<your-subdomain>.workers.dev/";
+
+static const char* WIFI_SSID = "";
+static const char* WIFI_PASS = "";
+
+// Refresh intervals (milliseconds)
+static const uint32_t INTERVAL_CLOCK_MS = 20 * 1000;
+static const uint32_t INTERVAL_TFL_MS = 20 * 1000;
+static const uint32_t INTERVAL_SENSORS_MS = 5 * 60 * 1000;
+static const uint32_t INTERVAL_WEATHER_MS = 60 * 60 * 1000;
