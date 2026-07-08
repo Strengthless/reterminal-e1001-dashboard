@@ -26,7 +26,7 @@ This writes:
 | File | Purpose |
 | --- | --- |
 | `cloudflare/.dev.vars` | API keys for local `wrangler dev` |
-| `cloudflare/wrangler.jsonc` | Worker vars (TfL stop, weather location, cache TTLs) and KV namespace binding |
+| `cloudflare/wrangler.jsonc` | Worker vars (TfL stop, weather location, weather cache TTL) and KV namespace binding |
 | `arduino/dashboard/config.h` | `WORKER_URL`, WiFi credentials, refresh intervals (gitignored) |
 
 Re-run `npm run sync-env` whenever you change `.env`.
@@ -46,7 +46,7 @@ npx wrangler secret put TFL_API_KEY
 npx wrangler secret put METOFFICE_API_KEY
 ```
 
-The worker caches TfL and weather data in a **KV namespace** (`CACHE` binding in `wrangler.jsonc`). Namespace IDs are safe to commit — they are resource identifiers, not secrets. If you deploy to your own Cloudflare account for the first time, create namespaces and update the IDs in `wrangler.jsonc`:
+The worker caches **weather** data in a **KV namespace** (`CACHE` binding in `wrangler.jsonc`) to stay within Met Office rate limits. TfL provides a much more generous rate limit, therefore responses are always fetched fresh (in-memory only per isolate for in-flight dedup and error fallback). Namespace IDs are safe to commit — they are resource identifiers, not secrets. If you deploy to your own Cloudflare account for the first time, create namespaces and update the IDs in `wrangler.jsonc`:
 
 ```bash
 cd cloudflare
@@ -143,7 +143,7 @@ so this firmware uses **1-bit full-screen GC refresh** (`epaper.update()`) on a 
 ### Tech stack
 
 - Arduino + [Seeed_GFX](https://github.com/Seeed-Studio/Seeed_GFX)
-- [Cloudflare Worker](https://developers.cloudflare.com/workers/) — JSON API (`/`, `/tfl`, `/weather`), KV-backed caching
+- [Cloudflare Worker](https://developers.cloudflare.com/workers/) — JSON API (`/`, `/tfl`, `/weather`); weather cached in KV, TfL fetched fresh
 
 ### Refresh behaviour
 

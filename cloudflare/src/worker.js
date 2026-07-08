@@ -48,13 +48,9 @@ const WEATHER_DESCRIPTIONS = {
   30: 'Thunder',
 };
 
-const DEFAULT_TFL_CACHE_SECONDS = 5;
 const DEFAULT_WEATHER_CACHE_SECONDS = 900;
 
-const CACHE_KEYS = {
-  tfl: 'tfl',
-  weather: 'weather',
-};
+const WEATHER_CACHE_KEY = 'weather';
 
 /** @type {{ tfl: { value: object | null, fetchedAt: number }, weather: { value: object | null, fetchedAt: number } }} */
 const memoryCache = {
@@ -81,7 +77,6 @@ function config(env) {
     weatherLat: env.WEATHER_LAT ?? DEFAULTS.WEATHER_LAT,
     weatherLon: env.WEATHER_LON ?? DEFAULTS.WEATHER_LON,
     weatherLocationName: env.WEATHER_LOCATION_NAME ?? DEFAULTS.WEATHER_LOCATION_NAME,
-    tflCacheSeconds: Number(env.TFL_CACHE_SECONDS) || DEFAULT_TFL_CACHE_SECONDS,
     weatherCacheSeconds: Number(env.WEATHER_CACHE_SECONDS) || DEFAULT_WEATHER_CACHE_SECONDS,
   };
 }
@@ -363,24 +358,19 @@ async function fetchTflBundle(cfg) {
   };
 }
 
-async function getCachedTfl(cfg, kv) {
+async function getCachedTfl(cfg) {
   const slot = memoryCache.tfl;
-  await hydrateSlotFromKv(kv, slot, CACHE_KEYS.tfl);
-
-  if (slot.value && cacheFresh(slot.fetchedAt, cfg.tflCacheSeconds)) {
-    return { value: slot.value, cacheStatus: 'HIT-TFL', fetchedAt: slot.fetchedAt };
-  }
 
   if (!inFlight.tfl) {
     inFlight.tfl = (async () => {
       try {
         const value = await fetchTflBundle(cfg);
         const fetchedAt = Date.now();
-        await persistSlotToKv(kv, slot, CACHE_KEYS.tfl, value, fetchedAt);
+        slot.value = value;
+        slot.fetchedAt = fetchedAt;
         return { value, cacheStatus: 'MISS-TFL', fetchedAt };
       } catch (error) {
         console.warn('TfL fetch failed:', error);
-        await hydrateSlotFromKv(kv, slot, CACHE_KEYS.tfl);
         if (slot.value) {
           return { value: slot.value, cacheStatus: 'STALE-TFL', fetchedAt: slot.fetchedAt };
         }
@@ -407,7 +397,7 @@ async function getCachedTfl(cfg, kv) {
 
 async function getCachedWeather(cfg, kv) {
   const slot = memoryCache.weather;
-  await hydrateSlotFromKv(kv, slot, CACHE_KEYS.weather);
+  await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
 
   if (isWeatherUsable(slot.value) && cacheFresh(slot.fetchedAt, cfg.weatherCacheSeconds)) {
     return { value: slot.value, cacheStatus: 'HIT-WEATHER', fetchedAt: slot.fetchedAt };
@@ -419,19 +409,19 @@ async function getCachedWeather(cfg, kv) {
         const value = await getWeather(cfg);
         if (isWeatherUsable(value)) {
           const fetchedAt = Date.now();
-          await persistSlotToKv(kv, slot, CACHE_KEYS.weather, value, fetchedAt);
+          await persistSlotToKv(kv, slot, WEATHER_CACHE_KEY, value, fetchedAt);
           return { value, cacheStatus: 'MISS-WEATHER', fetchedAt };
         }
 
         console.warn('Weather fetch returned no usable data');
-        await hydrateSlotFromKv(kv, slot, CACHE_KEYS.weather);
+        await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
         if (isWeatherUsable(slot.value)) {
           return { value: slot.value, cacheStatus: 'STALE-WEATHER', fetchedAt: slot.fetchedAt };
         }
         return { value, cacheStatus: 'MISS-WEATHER-ERROR', fetchedAt: 0 };
       } catch (error) {
         console.warn('Weather fetch failed:', error);
-        await hydrateSlotFromKv(kv, slot, CACHE_KEYS.weather);
+        await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
         if (isWeatherUsable(slot.value)) {
           return { value: slot.value, cacheStatus: 'STALE-WEATHER', fetchedAt: slot.fetchedAt };
         }
@@ -471,7 +461,7 @@ export default {
     }
 
     if (pathname === '/tfl') {
-      const tflResult = await getCachedTfl(cfg, kv);
+      const tflResult = await getCachedTfl(cfg);
 
       return jsonResponse(
         {
@@ -490,7 +480,7 @@ export default {
     }
 
     const [tflResult, weatherResult] = await Promise.all([
-      getCachedTfl(cfg, kv),
+      getCachedTfl(cfg),
       getCachedWeather(cfg, kv),
     ]);
 

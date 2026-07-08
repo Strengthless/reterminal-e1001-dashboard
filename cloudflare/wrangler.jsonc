@@ -21,7 +21,6 @@
     "WEATHER_LAT": "51.5130",
     "WEATHER_LON": "-0.3089",
     "WEATHER_LOCATION_NAME": "Ealing, London",
-    "TFL_CACHE_SECONDS": "5",
     "WEATHER_CACHE_SECONDS": "900"
   },
   "observability": {

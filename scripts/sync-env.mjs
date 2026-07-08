@@ -23,7 +23,6 @@ const CLOUDFLARE_KEYS = [
 
 const WRANGLER_VAR_KEYS = [
   ...CLOUDFLARE_KEYS.filter((k) => !k.endsWith('_API_KEY')),
-  'TFL_CACHE_SECONDS',
   'WEATHER_CACHE_SECONDS',
 ];
 
