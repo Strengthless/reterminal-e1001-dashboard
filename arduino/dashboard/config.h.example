@@ -10,8 +10,8 @@ static const char* WIFI_PASS = "";
 // Refresh intervals (milliseconds)
 static const uint32_t INTERVAL_CLOCK_MS = 20 * 1000;
 static const uint32_t INTERVAL_TFL_MS = 20 * 1000;
-static const uint32_t INTERVAL_SENSORS_MS = 5 * 60 * 1000;
-static const uint32_t INTERVAL_WEATHER_MS = 60 * 60 * 1000;
+static const uint32_t INTERVAL_SENSORS_MS = 3 * 60 * 1000;
+static const uint32_t INTERVAL_WEATHER_MS = 15 * 60 * 1000;
 
 // Set to 1 for Serial1 debug logs ([net], [loop], etc.).
 #ifndef DASHBOARD_DIAGNOSTICS

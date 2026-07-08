@@ -151,8 +151,8 @@ so this firmware uses **1-bit full-screen GC refresh** (`epaper.update()`) on a 
 | --- | --- |
 | Display (full GC refresh) | 20 s |
 | TfL fetch | 20 s |
-| Bedroom sensors + battery | 5 min |
-| Weather fetch (worker caches Met Office for 1 h) | 1 h |
+| Bedroom sensors + battery | 3 min |
+| Weather fetch (worker caches Met Office for 15 min) | 15 min |
 | Date rollover | midnight |
 
 Stale API data keeps the last good payload on screen; a hourglass icon indicates stale TfL data, a warning icon indicates disruption or non–Good Service.

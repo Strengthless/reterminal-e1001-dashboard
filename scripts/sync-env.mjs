@@ -144,8 +144,8 @@ static const char* WIFI_PASS = "${escapeC(wifiPass)}";
 // Full-screen GC refresh interval (epaper.update — clears ghosting, visible flash).
 static const uint32_t INTERVAL_CLOCK_MS = 20 * 1000;
 static const uint32_t INTERVAL_TFL_MS = 20 * 1000;
-static const uint32_t INTERVAL_SENSORS_MS = 5 * 60 * 1000;
-static const uint32_t INTERVAL_WEATHER_MS = 60 * 60 * 1000;
+static const uint32_t INTERVAL_SENSORS_MS = 3 * 60 * 1000;
+static const uint32_t INTERVAL_WEATHER_MS = 15 * 60 * 1000;
 `;
 
   const path = join(ROOT, 'arduino', 'dashboard', 'config.h');
