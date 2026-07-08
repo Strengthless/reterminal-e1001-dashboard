@@ -338,18 +338,17 @@ async function fetchMetOffice(endpoint, cfg) {
 
 function pickCurrentHourlyEntry(timeSeries) {
   const now = Date.now();
-  let best = timeSeries[0];
-  let bestDelta = Infinity;
+  let best = null;
 
   for (const entry of timeSeries) {
-    const delta = Math.abs(new Date(entry.time).getTime() - now);
-    if (delta < bestDelta) {
-      bestDelta = delta;
+    const entryMs = new Date(entry.time).getTime();
+    if (entryMs > now) continue;
+    if (!best || entryMs > new Date(best.time).getTime()) {
       best = entry;
     }
   }
 
-  return best;
+  return best ?? timeSeries[0];
 }
 
 function pickTodayDailyEntry(timeSeries) {
