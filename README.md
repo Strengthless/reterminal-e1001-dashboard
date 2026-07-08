@@ -26,7 +26,7 @@ This writes:
 | File | Purpose |
 | --- | --- |
 | `cloudflare/.dev.vars` | API keys for local `wrangler dev` |
-| `cloudflare/wrangler.jsonc` | Non-secret worker vars (TfL stop, weather location, cache TTLs) |
+| `cloudflare/wrangler.jsonc` | Worker vars (TfL stop, weather location, cache TTLs) and KV namespace binding |
 | `arduino/dashboard/config.h` | `WORKER_URL`, WiFi credentials, refresh intervals (gitignored) |
 
 Re-run `npm run sync-env` whenever you change `.env`.
@@ -46,9 +46,17 @@ npx wrangler secret put TFL_API_KEY
 npx wrangler secret put METOFFICE_API_KEY
 ```
 
+The worker caches TfL and weather data in a **KV namespace** (`CACHE` binding in `wrangler.jsonc`). Namespace IDs are safe to commit — they are resource identifiers, not secrets. If you deploy to your own Cloudflare account for the first time, create namespaces and update the IDs in `wrangler.jsonc`:
+
+```bash
+cd cloudflare
+npx wrangler kv namespace create CACHE
+npx wrangler kv namespace create CACHE --preview
+```
+
 Put the deployed worker URL in `.env` as `WORKER_URL`, then run `npm run sync-env` again so the firmware picks it up.
 
-For local worker development: `npm run dev` (http://localhost:8787).
+For local worker development: `npm run dev` (http://localhost:8787). Local dev uses the preview KV namespace; API responses are not edge-cached (`Cache-Control: private, no-store`).
 
 ### 3. Flash the Arduino firmware
 
@@ -135,7 +143,7 @@ so this firmware uses **1-bit full-screen GC refresh** (`epaper.update()`) on a 
 ### Tech stack
 
 - Arduino + [Seeed_GFX](https://github.com/Seeed-Studio/Seeed_GFX)
-- [Cloudflare Worker](https://developers.cloudflare.com/workers/) — single JSON endpoint, in-memory caching
+- [Cloudflare Worker](https://developers.cloudflare.com/workers/) — JSON API (`/`, `/tfl`, `/weather`), KV-backed caching
 
 ### Refresh behaviour
 
@@ -144,7 +152,7 @@ so this firmware uses **1-bit full-screen GC refresh** (`epaper.update()`) on a 
 | Display (full GC refresh) | 20 s |
 | TfL fetch | 20 s |
 | Bedroom sensors + battery | 5 min |
-| Weather fetch (worker caches Met Office for 15 min) | 1 h |
+| Weather fetch (worker caches Met Office for 1 h) | 1 h |
 | Date rollover | midnight |
 
 Stale API data keeps the last good payload on screen; a hourglass icon indicates stale TfL data, a warning icon indicates disruption or non–Good Service.

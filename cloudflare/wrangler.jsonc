@@ -4,9 +4,13 @@
   "workers_dev": true,
   "preview_urls": false,
   "compatibility_date": "2026-07-04",
-  "cache": {
-    "enabled": true
-  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "a24a672e24fb4e4f9635ca5c4d6508f9",
+      "preview_id": "1f8ab8baaa31420d82bf0e8930bced68"
+    }
+  ],
   "vars": {
     "TFL_LINE": "elizabeth",
     "TFL_LINE_NAME": "Elizabeth line",
