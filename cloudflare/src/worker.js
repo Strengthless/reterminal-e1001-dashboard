@@ -224,12 +224,16 @@ function isWeatherUsable(value) {
 async function hydrateSlotFromKv(kv, slot, key) {
   if (!kv) return;
 
-  const stored = await kv.get(key, 'json');
-  if (!stored?.fetchedAt) return;
+  try {
+    const stored = await kv.get(key, 'json');
+    if (!stored?.fetchedAt) return;
 
-  if (stored.fetchedAt > slot.fetchedAt) {
-    slot.value = stored.value ?? null;
-    slot.fetchedAt = stored.fetchedAt;
+    if (stored.fetchedAt > slot.fetchedAt) {
+      slot.value = stored.value ?? null;
+      slot.fetchedAt = stored.fetchedAt;
+    }
+  } catch (error) {
+    console.warn('KV read failed:', error);
   }
 }
 
@@ -238,7 +242,11 @@ async function persistSlotToKv(kv, slot, key, value, fetchedAt) {
   slot.fetchedAt = fetchedAt;
   if (!kv) return;
 
-  await kv.put(key, JSON.stringify({ value, fetchedAt }));
+  try {
+    await kv.put(key, JSON.stringify({ value, fetchedAt }));
+  } catch (error) {
+    console.warn('KV write failed:', error);
+  }
 }
 
 async function getTflETA(cfg) {
