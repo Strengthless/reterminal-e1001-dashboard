@@ -85,6 +85,58 @@ function cacheFresh(fetchedAt, ttlSeconds) {
   return fetchedAt > 0 && Date.now() - fetchedAt < ttlSeconds * 1000;
 }
 
+function cacheAgeSeconds(fetchedAt) {
+  return fetchedAt > 0 ? Math.floor((Date.now() - fetchedAt) / 1000) : null;
+}
+
+function weatherCacheStatus(fetchedAt, ttlSeconds) {
+  return cacheFresh(fetchedAt, ttlSeconds) ? 'HIT-WEATHER' : 'STALE-WEATHER';
+}
+
+function logWeatherCache(result, cfg, { reason = null } = {}) {
+  const age = cacheAgeSeconds(result.fetchedAt);
+  const detail = [
+    result.cacheStatus,
+    result.cacheLayer ? `layer=${result.cacheLayer}` : null,
+    age != null ? `age=${age}s` : null,
+    `ttl=${cfg.weatherCacheSeconds}s`,
+    result.fetchedAt ? `fetchedAt=${isoOrNull(result.fetchedAt)}` : null,
+    reason ? `reason=${reason}` : null,
+  ].filter(Boolean).join(' ');
+
+  if (result.cacheStatus === 'MISS-WEATHER-ERROR') {
+    console.error(`Weather cache ${detail}`);
+  } else if (result.cacheStatus === 'STALE-WEATHER') {
+    console.warn(`Weather cache ${detail}`);
+  } else {
+    console.info(`Weather cache ${detail}`);
+  }
+}
+
+function logTflSubfetchFailure(kind, error) {
+  const message = String(error);
+  if (message.includes('429')) throw error;
+  const log = /HTTP (401|403)/.test(message) ? console.error : console.warn;
+  log(`TfL ${kind} failed:`, error);
+}
+
+function logTflCache(result, { reason = null } = {}) {
+  const age = cacheAgeSeconds(result.fetchedAt);
+  const detail = [
+    result.cacheStatus,
+    result.cacheLayer ? `layer=${result.cacheLayer}` : null,
+    age != null ? `age=${age}s` : null,
+    result.fetchedAt ? `fetchedAt=${isoOrNull(result.fetchedAt)}` : null,
+    reason ? `reason=${reason}` : null,
+  ].filter(Boolean).join(' ');
+
+  if (result.cacheStatus === 'MISS-TFL-ERROR') {
+    console.error(`TfL cache ${detail}`);
+  } else if (result.cacheStatus === 'STALE-TFL') {
+    console.warn(`TfL cache ${detail}`);
+  }
+}
+
 function isoOrNull(ms) {
   return ms > 0 ? new Date(ms).toISOString() : null;
 }
@@ -217,8 +269,7 @@ async function getTflETA(cfg) {
 
     return etas;
   } catch (error) {
-    if (String(error).includes('429')) throw error;
-    console.warn('Error fetching TfL ETA:', error);
+    logTflSubfetchFailure('arrivals', error);
     return [];
   }
 }
@@ -240,8 +291,7 @@ async function getTflStatus(cfg) {
     const statuses = data[0].lineStatuses.map((s) => s.statusSeverityDescription);
     return beautifyList(statuses);
   } catch (error) {
-    if (String(error).includes('429')) throw error;
-    console.warn('Error fetching TfL status:', error);
+    logTflSubfetchFailure('status', error);
     return 'N/A';
   }
 }
@@ -256,8 +306,7 @@ async function getTflDisruption(cfg) {
     const data = await res.json();
     return data.length > 0;
   } catch (error) {
-    if (String(error).includes('429')) throw error;
-    console.warn('Error fetching TfL disruption:', error);
+    logTflSubfetchFailure('disruption', error);
     return false;
   }
 }
@@ -370,11 +419,17 @@ async function getCachedTfl(cfg) {
         slot.fetchedAt = fetchedAt;
         return { value, cacheStatus: 'MISS-TFL', fetchedAt };
       } catch (error) {
-        console.warn('TfL fetch failed:', error);
         if (slot.value) {
-          return { value: slot.value, cacheStatus: 'STALE-TFL', fetchedAt: slot.fetchedAt };
+          const result = {
+            value: slot.value,
+            cacheStatus: 'STALE-TFL',
+            fetchedAt: slot.fetchedAt,
+            cacheLayer: 'memory',
+          };
+          logTflCache(result, { reason: String(error) });
+          return result;
         }
-        return {
+        const result = {
           value: {
             line: cfg.tflLineName,
             stop: cfg.tflStopName,
@@ -386,6 +441,8 @@ async function getCachedTfl(cfg) {
           cacheStatus: 'MISS-TFL-ERROR',
           fetchedAt: 0,
         };
+        logTflCache(result, { reason: String(error) });
+        return result;
       } finally {
         inFlight.tfl = null;
       }
@@ -397,10 +454,20 @@ async function getCachedTfl(cfg) {
 
 async function getCachedWeather(cfg, kv) {
   const slot = memoryCache.weather;
+  const memoryFetchedAt = slot.fetchedAt;
+  const hadMemory = isWeatherUsable(slot.value);
   await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
+  const cacheLayer = hadMemory && slot.fetchedAt === memoryFetchedAt ? 'memory' : 'kv';
 
   if (isWeatherUsable(slot.value) && cacheFresh(slot.fetchedAt, cfg.weatherCacheSeconds)) {
-    return { value: slot.value, cacheStatus: 'HIT-WEATHER', fetchedAt: slot.fetchedAt };
+    const result = {
+      value: slot.value,
+      cacheStatus: 'HIT-WEATHER',
+      fetchedAt: slot.fetchedAt,
+      cacheLayer,
+    };
+    logWeatherCache(result, cfg);
+    return result;
   }
 
   if (!inFlight.weather) {
@@ -410,26 +477,55 @@ async function getCachedWeather(cfg, kv) {
         if (isWeatherUsable(value)) {
           const fetchedAt = Date.now();
           await persistSlotToKv(kv, slot, WEATHER_CACHE_KEY, value, fetchedAt);
-          return { value, cacheStatus: 'MISS-WEATHER', fetchedAt };
+          const result = {
+            value,
+            cacheStatus: 'MISS-WEATHER',
+            fetchedAt,
+            cacheLayer: 'upstream',
+          };
+          logWeatherCache(result, cfg);
+          return result;
         }
 
         console.warn('Weather fetch returned no usable data');
         await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
         if (isWeatherUsable(slot.value)) {
-          return { value: slot.value, cacheStatus: 'STALE-WEATHER', fetchedAt: slot.fetchedAt };
+          const result = {
+            value: slot.value,
+            cacheStatus: weatherCacheStatus(slot.fetchedAt, cfg.weatherCacheSeconds),
+            fetchedAt: slot.fetchedAt,
+            cacheLayer: 'kv',
+          };
+          logWeatherCache(result, cfg, { reason: 'upstream-unusable' });
+          return result;
         }
-        return { value, cacheStatus: 'MISS-WEATHER-ERROR', fetchedAt: 0 };
+        const result = {
+          value,
+          cacheStatus: 'MISS-WEATHER-ERROR',
+          fetchedAt: 0,
+        };
+        logWeatherCache(result, cfg, { reason: 'upstream-unusable-no-cache' });
+        return result;
       } catch (error) {
         console.warn('Weather fetch failed:', error);
         await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
         if (isWeatherUsable(slot.value)) {
-          return { value: slot.value, cacheStatus: 'STALE-WEATHER', fetchedAt: slot.fetchedAt };
+          const result = {
+            value: slot.value,
+            cacheStatus: weatherCacheStatus(slot.fetchedAt, cfg.weatherCacheSeconds),
+            fetchedAt: slot.fetchedAt,
+            cacheLayer: 'kv',
+          };
+          logWeatherCache(result, cfg, { reason: String(error) });
+          return result;
         }
-        return {
+        const result = {
           value: weatherFallback(cfg),
           cacheStatus: 'MISS-WEATHER-ERROR',
           fetchedAt: 0,
         };
+        logWeatherCache(result, cfg, { reason: String(error) });
+        return result;
       } finally {
         inFlight.weather = null;
       }
