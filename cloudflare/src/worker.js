@@ -49,6 +49,8 @@ const WEATHER_DESCRIPTIONS = {
 };
 
 const DEFAULT_WEATHER_CACHE_SECONDS = 900;
+const TFL_FETCH_TIMEOUT_MS = 5000;
+const WEATHER_FETCH_TIMEOUT_MS = 10000;
 
 const WEATHER_CACHE_KEY = 'weather';
 
@@ -56,12 +58,6 @@ const WEATHER_CACHE_KEY = 'weather';
 const memoryCache = {
   tfl: { value: null, fetchedAt: 0 },
   weather: { value: null, fetchedAt: 0 },
-};
-
-/** @type {{ tfl: Promise<object> | null, weather: Promise<object> | null }} */
-const inFlight = {
-  tfl: null,
-  weather: null,
 };
 
 function config(env) {
@@ -253,7 +249,7 @@ async function getTflETA(cfg) {
   const url = `https://api.tfl.gov.uk/Line/${cfg.tflLine}/Arrivals/${cfg.tflStop}?direction=${cfg.tflDirection}&app_key=${cfg.tflApiKey}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(TFL_FETCH_TIMEOUT_MS) });
     if (res.status === 429) throw new Error('TfL arrivals HTTP 429');
     if (!res.ok) throw new Error(`TfL arrivals HTTP ${res.status}`);
     const data = await res.json();
@@ -286,7 +282,7 @@ async function getTflStatus(cfg) {
   const url = `https://api.tfl.gov.uk/Line/${cfg.tflLine}/Status?app_key=${cfg.tflApiKey}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(TFL_FETCH_TIMEOUT_MS) });
     if (res.status === 429) throw new Error('TfL status HTTP 429');
     if (!res.ok) throw new Error(`TfL status HTTP ${res.status}`);
     const data = await res.json();
@@ -308,7 +304,7 @@ async function getTflDisruption(cfg) {
   const url = `https://api.tfl.gov.uk/Line/${cfg.tflLine}/Disruption?app_key=${cfg.tflApiKey}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(TFL_FETCH_TIMEOUT_MS) });
     if (res.status === 429) throw new Error('TfL disruption HTTP 429');
     if (!res.ok) throw new Error(`TfL disruption HTTP ${res.status}`);
     const data = await res.json();
@@ -329,6 +325,7 @@ async function fetchMetOffice(endpoint, cfg) {
 
   const res = await fetch(`${MET_OFFICE_BASE}/${endpoint}?${params}`, {
     headers: { apikey: cfg.metOfficeApiKey },
+    signal: AbortSignal.timeout(WEATHER_FETCH_TIMEOUT_MS),
   });
 
   if (res.status === 429) throw new Error(`Met Office ${endpoint} HTTP 429`);
@@ -417,46 +414,38 @@ async function fetchTflBundle(cfg) {
 async function getCachedTfl(cfg) {
   const slot = memoryCache.tfl;
 
-  if (!inFlight.tfl) {
-    inFlight.tfl = (async () => {
-      try {
-        const value = await fetchTflBundle(cfg);
-        const fetchedAt = Date.now();
-        slot.value = value;
-        slot.fetchedAt = fetchedAt;
-        return { value, cacheStatus: 'MISS-TFL', fetchedAt };
-      } catch (error) {
-        if (slot.value) {
-          const result = {
-            value: slot.value,
-            cacheStatus: 'STALE-TFL',
-            fetchedAt: slot.fetchedAt,
-            cacheLayer: 'memory',
-          };
-          logTflCache(result, { reason: String(error) });
-          return result;
-        }
-        const result = {
-          value: {
-            line: cfg.tflLineName,
-            stop: cfg.tflStopName,
-            direction: cfg.tflDirectionLabel,
-            status: 'N/A',
-            disruption: false,
-            etas: [],
-          },
-          cacheStatus: 'MISS-TFL-ERROR',
-          fetchedAt: 0,
-        };
-        logTflCache(result, { reason: String(error) });
-        return result;
-      } finally {
-        inFlight.tfl = null;
-      }
-    })();
+  try {
+    const value = await fetchTflBundle(cfg);
+    const fetchedAt = Date.now();
+    slot.value = value;
+    slot.fetchedAt = fetchedAt;
+    return { value, cacheStatus: 'MISS-TFL', fetchedAt };
+  } catch (error) {
+    if (slot.value) {
+      const result = {
+        value: slot.value,
+        cacheStatus: 'STALE-TFL',
+        fetchedAt: slot.fetchedAt,
+        cacheLayer: 'memory',
+      };
+      logTflCache(result, { reason: String(error) });
+      return result;
+    }
+    const result = {
+      value: {
+        line: cfg.tflLineName,
+        stop: cfg.tflStopName,
+        direction: cfg.tflDirectionLabel,
+        status: 'N/A',
+        disruption: false,
+        etas: [],
+      },
+      cacheStatus: 'MISS-TFL-ERROR',
+      fetchedAt: 0,
+    };
+    logTflCache(result, { reason: String(error) });
+    return result;
   }
-
-  return inFlight.tfl;
 }
 
 async function getCachedWeather(cfg, kv) {
@@ -477,69 +466,61 @@ async function getCachedWeather(cfg, kv) {
     return result;
   }
 
-  if (!inFlight.weather) {
-    inFlight.weather = (async () => {
-      try {
-        const value = await getWeather(cfg);
-        if (isWeatherUsable(value)) {
-          const fetchedAt = Date.now();
-          await persistSlotToKv(kv, slot, WEATHER_CACHE_KEY, value, fetchedAt);
-          const result = {
-            value,
-            cacheStatus: 'MISS-WEATHER',
-            fetchedAt,
-            cacheLayer: 'upstream',
-          };
-          logWeatherCache(result, cfg);
-          return result;
-        }
+  try {
+    const value = await getWeather(cfg);
+    if (isWeatherUsable(value)) {
+      const fetchedAt = Date.now();
+      await persistSlotToKv(kv, slot, WEATHER_CACHE_KEY, value, fetchedAt);
+      const result = {
+        value,
+        cacheStatus: 'MISS-WEATHER',
+        fetchedAt,
+        cacheLayer: 'upstream',
+      };
+      logWeatherCache(result, cfg);
+      return result;
+    }
 
-        console.warn('Weather fetch returned no usable data');
-        await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
-        if (isWeatherUsable(slot.value)) {
-          const result = {
-            value: slot.value,
-            cacheStatus: weatherCacheStatus(slot.fetchedAt, cfg.weatherCacheSeconds),
-            fetchedAt: slot.fetchedAt,
-            cacheLayer: 'kv',
-          };
-          logWeatherCache(result, cfg, { reason: 'upstream-unusable' });
-          return result;
-        }
-        const result = {
-          value,
-          cacheStatus: 'MISS-WEATHER-ERROR',
-          fetchedAt: 0,
-        };
-        logWeatherCache(result, cfg, { reason: 'upstream-unusable-no-cache' });
-        return result;
-      } catch (error) {
-        console.warn('Weather fetch failed:', error);
-        await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
-        if (isWeatherUsable(slot.value)) {
-          const result = {
-            value: slot.value,
-            cacheStatus: weatherCacheStatus(slot.fetchedAt, cfg.weatherCacheSeconds),
-            fetchedAt: slot.fetchedAt,
-            cacheLayer: 'kv',
-          };
-          logWeatherCache(result, cfg, { reason: String(error) });
-          return result;
-        }
-        const result = {
-          value: weatherFallback(cfg),
-          cacheStatus: 'MISS-WEATHER-ERROR',
-          fetchedAt: 0,
-        };
-        logWeatherCache(result, cfg, { reason: String(error) });
-        return result;
-      } finally {
-        inFlight.weather = null;
-      }
-    })();
+    console.warn('Weather fetch returned no usable data');
+    await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
+    if (isWeatherUsable(slot.value)) {
+      const result = {
+        value: slot.value,
+        cacheStatus: weatherCacheStatus(slot.fetchedAt, cfg.weatherCacheSeconds),
+        fetchedAt: slot.fetchedAt,
+        cacheLayer: 'kv',
+      };
+      logWeatherCache(result, cfg, { reason: 'upstream-unusable' });
+      return result;
+    }
+    const result = {
+      value,
+      cacheStatus: 'MISS-WEATHER-ERROR',
+      fetchedAt: 0,
+    };
+    logWeatherCache(result, cfg, { reason: 'upstream-unusable-no-cache' });
+    return result;
+  } catch (error) {
+    console.warn('Weather fetch failed:', error);
+    await hydrateSlotFromKv(kv, slot, WEATHER_CACHE_KEY);
+    if (isWeatherUsable(slot.value)) {
+      const result = {
+        value: slot.value,
+        cacheStatus: weatherCacheStatus(slot.fetchedAt, cfg.weatherCacheSeconds),
+        fetchedAt: slot.fetchedAt,
+        cacheLayer: 'kv',
+      };
+      logWeatherCache(result, cfg, { reason: String(error) });
+      return result;
+    }
+    const result = {
+      value: weatherFallback(cfg),
+      cacheStatus: 'MISS-WEATHER-ERROR',
+      fetchedAt: 0,
+    };
+    logWeatherCache(result, cfg, { reason: String(error) });
+    return result;
   }
-
-  return inFlight.weather;
 }
 
 export default {
